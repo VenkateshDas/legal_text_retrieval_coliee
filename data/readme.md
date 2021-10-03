@@ -1,0 +1,1 @@
+The data used was COLIEE 2020 Japansese statute laws translated to English. 
