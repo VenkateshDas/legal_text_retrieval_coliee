@@ -11,6 +11,7 @@
 - [Overview](#overview)
 - [The Problem](#the-problem)
 - [Our Solution](#our-solution)
+- [System Architecture & Workflow](#system-architecture--workflow)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -59,6 +60,195 @@ We implement and compare **5 different retrieval approaches**:
 5. **DistilBERT** - Transformer-based binary relevance classification
 
 Each method is tuned with various preprocessing techniques including query expansion, lemmatization, and n-gram features.
+
+## 🎨 System Architecture & Workflow
+
+### Overall System Pipeline
+
+This diagram shows the complete flow from raw data to final evaluation:
+
+```mermaid
+graph TD
+    A[📄 Raw XML Data] --> B[🔧 Data Preprocessing]
+    B --> C[📝 Parse XML Files]
+    C --> D[🧹 Clean & Tokenize]
+    D --> E[🔤 Lemmatization]
+    E --> F[💾 Pickle Files]
+
+    F --> G{Choose Retrieval Method}
+
+    G -->|Classical| H[📊 TF-IDF]
+    G -->|Classical| I[📈 BM25]
+    G -->|Modern| J[🔀 WMD law2vec]
+    G -->|Modern| K[🔀 WMD GloVe]
+    G -->|Modern| L[🤖 DistilBERT]
+
+    H --> M[🎯 Retrieve Articles]
+    I --> M
+    J --> M
+    K --> M
+    L --> M
+
+    M --> N[📐 Evaluation]
+    N --> O[✅ Precision, Recall, F2-Score]
+
+    style A fill:#e1f5ff
+    style F fill:#fff4e1
+    style M fill:#e8f5e9
+    style O fill:#f3e5f5
+```
+
+### Experimental Workflow
+
+This shows how we conduct and compare experiments:
+
+```mermaid
+graph LR
+    A[🎯 Start] --> B[📚 Load Dataset<br/>695 queries<br/>782 articles]
+    B --> C{Select Features}
+
+    C -->|Option 1| D[Tokens]
+    C -->|Option 2| E[Lemmas]
+    C -->|Option 3| F[N-grams]
+    C -->|Option 4| G[Query Expansion]
+
+    D --> H[⚙️ Configure Method<br/>top-n, threshold]
+    E --> H
+    F --> H
+    G --> H
+
+    H --> I[🔄 Run Retrieval]
+    I --> J[📊 Calculate Metrics]
+    J --> K{F2 > 0.45?}
+
+    K -->|No| L[🔧 Tune Parameters]
+    L --> H
+    K -->|Yes| M[✅ Save Results]
+    M --> N[📝 Document Findings]
+
+    style A fill:#e8f5e9
+    style K fill:#fff3e0
+    style M fill:#e1f5ff
+    style N fill:#f3e5f5
+```
+
+### Method Comparison Architecture
+
+Here's how different retrieval methods work:
+
+```mermaid
+graph TD
+    subgraph Input
+        Q[Legal Query]
+        A[Civil Code Articles]
+    end
+
+    subgraph Classical_Methods[🔵 Classical Methods]
+        TF[TF-IDF<br/>Sparse Matrix]
+        BM[BM25<br/>Probabilistic]
+    end
+
+    subgraph Modern_Methods[🟢 Modern Methods]
+        WL[WMD + law2vec<br/>Legal Embeddings]
+        WG[WMD + GloVe<br/>General Embeddings]
+        DB[DistilBERT<br/>Transformer]
+    end
+
+    Q --> Classical_Methods
+    A --> Classical_Methods
+    Q --> Modern_Methods
+    A --> Modern_Methods
+
+    TF --> R1[Cosine Similarity]
+    BM --> R2[BM25 Score]
+    WL --> R3[Earth Mover Distance]
+    WG --> R4[Earth Mover Distance]
+    DB --> R5[Classification Score]
+
+    R1 --> Final[🎯 Ranked Results]
+    R2 --> Final
+    R3 --> Final
+    R4 --> Final
+    R5 --> Final
+
+    Final --> Eval[📐 Evaluation<br/>F2-Score]
+
+    style Q fill:#e3f2fd
+    style A fill:#e3f2fd
+    style Classical_Methods fill:#fff9c4
+    style Modern_Methods fill:#c8e6c9
+    style Final fill:#f8bbd0
+    style Eval fill:#d1c4e9
+```
+
+### Data Preprocessing Pipeline
+
+Detailed view of how we prepare the data:
+
+```mermaid
+graph TB
+    Start[📄 statute_law.xml<br/>riteval_H*.xml] --> Parse[🔍 XML Parser]
+
+    Parse --> Extract[📝 Extract Fields<br/>• Article Numbers<br/>• Article Text<br/>• Query Text]
+
+    Extract --> Token[✂️ Tokenization<br/>word_tokenize]
+
+    Token --> Stop[🚫 Remove Stopwords<br/>NLTK English]
+
+    Stop --> Norm{Normalization}
+
+    Norm -->|Path 1| Lem[🔤 Lemmatization<br/>WordNetLemmatizer]
+    Norm -->|Path 2| Stem[🌱 Stemming<br/>PorterStemmer]
+
+    Lem --> Feat[🔧 Feature Engineering]
+    Stem --> Feat
+
+    Feat --> Bi[Bigrams]
+    Feat --> Tri[Trigrams]
+    Feat --> Exp[Query Expansion]
+
+    Bi --> Save[💾 Save Pickle Files]
+    Tri --> Save
+    Exp --> Save
+
+    Save --> Out1[cleaned_ground_truth.pkl]
+    Save --> Out2[cleaned_extended_ground_truth.pkl]
+    Save --> Out3[cleaned_civil_code.pkl]
+
+    style Start fill:#e1f5ff
+    style Save fill:#fff4e1
+    style Out1 fill:#e8f5e9
+    style Out2 fill:#e8f5e9
+    style Out3 fill:#e8f5e9
+```
+
+### Quick Decision Guide
+
+Use this to choose the right method for your needs:
+
+```mermaid
+graph TD
+    Start{What's your priority?}
+
+    Start -->|Speed & Simplicity| Fast[Use BM25<br/>✅ Fast<br/>✅ No training<br/>✅ Best F2-Score]
+
+    Start -->|Semantic Understanding| Sem{Do you have legal data?}
+
+    Sem -->|Yes| Legal[Use WMD + law2vec<br/>✅ Legal domain<br/>✅ Semantic matching]
+
+    Sem -->|No| General[Use WMD + GloVe<br/>✅ General domain<br/>✅ Semantic matching]
+
+    Start -->|Custom Training| Train[Use DistilBERT<br/>✅ Learn from data<br/>⚠️ Requires GPU<br/>⚠️ Longer training]
+
+    Start -->|Baseline Comparison| Base[Use TF-IDF<br/>✅ Classic baseline<br/>✅ Fast & simple]
+
+    style Start fill:#e1f5ff
+    style Fast fill:#c8e6c9
+    style Legal fill:#fff9c4
+    style General fill:#ffecb3
+    style Train fill:#f8bbd0
+    style Base fill:#e0e0e0
+```
 
 ## 📁 Project Structure
 
